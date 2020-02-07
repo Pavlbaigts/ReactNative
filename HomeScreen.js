@@ -3,7 +3,9 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
-  Animated
+  Animated,
+  Easing,
+  StatusBar
 } from "react-native";
 import styled from "styled-components";
 import Card from "../components/Card";
@@ -12,9 +14,47 @@ import Course from "../components/Course";
 import { Ionicons } from "@expo/vector-icons";
 import Menu from "../components/Menu";
 import { connect } from "react-redux";
+import Avatar from "../components/Avatar";
+import ApolloClient from "apollo-boost";
+import { Query } from "react-apollo";
+import gql from "graphql-tag";
+
+const CardsQuery = gql`
+  {
+    cardsCollection {
+      items {
+        title
+        subtitle
+        image {
+          title
+          description
+          contentType
+          fileName
+          size
+          url
+          width
+          height
+        }
+        subtitle
+        caption
+        logo {
+          title
+          description
+          contentType
+          fileName
+          size
+          url
+          width
+          height
+        }
+        content
+      }
+    }
+  }
+`;
 
 function mapStateToProps(state) {
-  return { action: state.action };
+  return { action: state.action, name: state.name };
 }
 
 function mapDispatchToProps(dispatch) {
@@ -27,77 +67,169 @@ function mapDispatchToProps(dispatch) {
 }
 
 class HomeScreen extends React.Component {
+  static navigationOptions = {
+    header: null
+  };
+
+  state = {
+    scale: new Animated.Value(1),
+    opacity: new Animated.Value(1)
+  };
+
+  componentDidMount() {
+    StatusBar.setBarStyle("dark-content", true);
+  }
+
+  componentDidUpdate() {
+    this.toggleMenu();
+  }
+
+  toggleMenu = () => {
+    if (this.props.action == "openMenu") {
+      Animated.timing(this.state.scale, {
+        toValue: 0.9,
+        duration: 600,
+        easing: Easing.in()
+      }).start();
+      Animated.spring(this.state.opacity, {
+        toValue: 0.5
+      }).start();
+
+      StatusBar.setBarStyle("light-content", true);
+    }
+
+    if (this.props.action == "closeMenu") {
+      Animated.timing(this.state.scale, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.in()
+      }).start();
+      Animated.spring(this.state.opacity, {
+        toValue: 1
+      }).start();
+      StatusBar.setBarStyle("dark-content", true);
+    }
+  };
+
   render() {
     return (
-      <Container>
+      <RootView>
         <Menu />
-        <SafeAreaView>
-          <ScrollView style={{ height: "100%" }}>
-            <TitleBar>
-              <TouchableOpacity onpress={this.props.openMenu}>
-                <Avatar source={require("../assets/avatar.jpg")} />
-              </TouchableOpacity>
-              <Title>Welcome back,</Title>
-              <Name>Paul</Name>
-              <Ionicons
-                name="ios-notifications"
-                size={32}
-                color="#4775f2"
-                style={{ position: "absolute", right: 20, top: 5 }}
-              />
-            </TitleBar>
-            <ScrollView
-              style={{
-                flexDirection: "row",
-                padding: 20,
-                paddingLeft: 12,
-                paddingTop: 30
-              }}
-              horizontal={true}
-              showsHorizontalScrollIndicator={false}
-            >
-              {logos.map((logo, index) => (
-                <Logo key={index} image={logo.image} text={logo.text} />
-              ))}
-            </ScrollView>
-            <Subtitle>Continue Learning</Subtitle>
-            <ScrollView
-              horizontal={true}
-              style={{ paddingBottom: 30 }}
-              showsHorizontalScrollIndicator={false}
-            >
-              {cards.map((card, index) => (
-                <Card
+        <AnimatedContainer
+          style={{
+            transform: [{ scale: this.state.scale }],
+            opacity: this.state.opacity
+          }}
+        >
+          <SafeAreaView>
+            <ScrollView style={{ height: "100%" }}>
+              <TitleBar>
+                <TouchableOpacity
+                  onPress={this.props.openMenu}
+                  style={{ position: "absolute", top: 0, left: 20 }}
+                >
+                  <Avatar />
+                </TouchableOpacity>
+                <Title>Welcome back,</Title>
+                <Name>{this.props.name}</Name>
+                <Ionicons
+                  name="ios-notifications"
+                  size={32}
+                  color="#4775f2"
+                  style={{ position: "absolute", right: 20, top: 5 }}
+                />
+              </TitleBar>
+              <ScrollView
+                style={{
+                  flexDirection: "row",
+                  padding: 20,
+                  paddingLeft: 12,
+                  paddingTop: 30
+                }}
+                horizontal={true}
+                showsHorizontalScrollIndicator={false}
+              >
+                {logos.map((logo, index) => (
+                  <Logo key={index} image={logo.image} text={logo.text} />
+                ))}
+              </ScrollView>
+              <Subtitle>Continue Learning</Subtitle>
+              <ScrollView
+                horizontal={true}
+                style={{ paddingBottom: 30 }}
+                showsHorizontalScrollIndicator={false}
+              >
+                <Query query={CardsQuery}>
+                  {({ loading, error, data }) => {
+                    if (loading) return <Message>Loading...</Message>;
+                    if (error) return <Message>Error...</Message>;
+
+                    console.log(data.cardsCollection.items);
+
+                    return (
+                      <CardsContainer>
+                        {data.cardsCollection.items.map((card, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            onPress={() => {
+                              this.props.navigation.push("Section", {
+                                section: card
+                              });
+                            }}
+                          >
+                            <Card
+                              title={card.title}
+                              image={card.image}
+                              caption={card.caption}
+                              logo={card.logo}
+                              subtitle={card.subtitle}
+                              content={card.content}
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </CardsContainer>
+                    );
+                  }}
+                </Query>
+              </ScrollView>
+              <Subtitle>Popular Courses</Subtitle>
+              {courses.map((course, index) => (
+                <Course
                   key={index}
-                  title={card.title}
-                  image={card.image}
-                  caption={card.caption}
-                  logo={card.logo}
-                  subtitle={card.subtitle}
+                  image={course.image}
+                  title={course.title}
+                  subtitle={course.subtitle}
+                  logo={course.logo}
+                  avatar={course.avatar}
+                  caption={course.caption}
+                  author={course.author}
                 />
               ))}
             </ScrollView>
-            <Subtitle>Popular Courses</Subtitle>
-            {courses.map((course, index) => (
-              <Course
-                key={index}
-                image={course.image}
-                title={course.title}
-                subtitle={course.subtitle}
-                logo={course.logo}
-                avatar={course.avatar}
-                caption={course.caption}
-                author={course.author}
-              />
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Container>
+          </SafeAreaView>
+        </AnimatedContainer>
+      </RootView>
     );
   }
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(HomeScreen);
+
+const Message = styled.Text`
+  margin: 20px;
+  color: #b8bece;
+  font-size: 15px;
+  font-weight: 500;
+`;
+
+const CardsContainer = styled.View`
+  flex-direction: row;
+`;
+
+const RootView = styled.View`
+  background: black;
+  flex: 1;
+`;
 
 const Subtitle = styled.Text`
   color: #b8bece;
@@ -108,18 +240,14 @@ const Subtitle = styled.Text`
   text-transform: uppercase;
 `;
 
-const Avatar = styled.Image`
-  width: 44px;
-  height: 44px;
-  background: black;
-  border-radius: 22px;
-  margin-left: 20px;
-`;
-
 const Container = styled.View`
   flex: 1;
   background-color: #f0f3f5;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
 `;
+
+const AnimatedContainer = Animated.createAnimatedComponent(Container);
 
 const Title = styled.Text`
   font-size: 16px;
